@@ -321,6 +321,7 @@ async function gh(path, opts = {}){
   const { owner, repo, token } = S.cfg;
   const res = await fetch(`https://api.github.com/repos/${owner}/${repo}${path}`, {
     method: opts.method || 'GET',
+    cache: 'no-store', // GitHub's API is cacheable for 60s; a stale branch head causes "not a fast forward"
     headers: { Authorization: `Bearer ${token}`, Accept: opts.accept || 'application/vnd.github+json', ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
@@ -331,13 +332,13 @@ async function gh(path, opts = {}){
 async function commitChanges(changes, message){
   const br = S.cfg.branch;
   for (const c of changes) if (!c.del && !c.sha) c.sha = (await gh('/git/blobs', { method: 'POST', body: { content: c.b64, encoding: 'base64' } })).sha;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const head = (await gh(`/git/ref/heads/${br}`)).object.sha;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const head = (await gh(`/git/ref/heads/${br}?t=${Date.now()}`)).object.sha;
     const base = (await gh(`/git/commits/${head}`)).tree.sha;
     const tree = await gh('/git/trees', { method: 'POST', body: { base_tree: base, tree: changes.map(c => ({ path: c.path, mode: '100644', type: 'blob', sha: c.del ? null : c.sha })) } });
     const commit = await gh('/git/commits', { method: 'POST', body: { message, tree: tree.sha, parents: [head] } });
     try { await gh(`/git/refs/heads/${br}`, { method: 'PATCH', body: { sha: commit.sha, force: false } }); return; }
-    catch (e) { if (e.status !== 422 || attempt === 3) throw e; await sleep(1500); }
+    catch (e) { if (e.status !== 422 || attempt === 5) throw e; await sleep(1000 * (attempt + 1)); }
   }
 }
 async function exists(path){ try { await gh(`/contents/${path}?ref=${S.cfg.branch}`); return true; } catch (e) { if (e.status === 404) return false; throw e; } }
