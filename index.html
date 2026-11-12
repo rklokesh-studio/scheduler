@@ -308,11 +308,16 @@ function firstLine(t){ return (t || '').trim().split('\n')[0]; }
 function addUtm(link, id){
   if (!link) return '';
   try {
-    const u = new URL(/^https?:\/\//.test(link) ? link : 'https://' + link);
-    const set = (k, v) => { if (!u.searchParams.has(k)) u.searchParams.set(k, v); };
-    set('utm_source', 'linkedin'); set('utm_medium', 'social'); set('utm_campaign', `post-${id}`); set('utm_content', 'plug');
-    return u.toString();
+    const hadScheme = /^https?:\/\//.test(link);
+    const u = new URL(hadScheme ? link : 'https://' + link);
+    if (!u.searchParams.has('utm_campaign')) u.searchParams.set('utm_campaign', shortCode(id));
+    const s = u.toString();
+    return hadScheme ? s : s.replace(/^https:\/\//, '');
   } catch { return link; }
+}
+function shortCode(id){
+  const m = /^\d{4}(\d{4})-\d+-(\w+)$/.exec(id || '');
+  return m ? `li${m[1]}${m[2].slice(0, 3)}` : 'li' + String(id || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(-7);
 }
 function plugFinal(plug, id){
   const link = addUtm((plug.link || '').trim(), id || '<post-id>');
@@ -830,7 +835,7 @@ function plugHTML(){
       <div class="final"><b>Comment preview</b>\n${esc(plugFinal(pl, c.id || '<post-id>')) || '…'}</div>
       ${pl.extra.error && !posted ? `<div class="err">${esc(pl.extra.error)}</div>` : ''}
       ${c.folder === 'posted' && !posted ? `<div><button class="btn primary" id="plugNow">${I.send}Drop plug now</button> <span class="note">&nbsp;Also available as a button in Telegram.</span></div>` : ''}
-      ${c.folder !== 'posted' ? `<div class="note">Links are tagged with <code>utm_campaign=post-…</code> so you can see which post brought each visitor and booked call.</div>` : ''}
+      ${c.folder !== 'posted' ? `<div class="note">Links get one short tag (e.g. <code>?utm_campaign=li1111ovm</code>) so Cal.com shows which post brought each booking.</div>` : ''}
     </div>` : `<div class="note" style="margin-top:6px">Add a comment with your link under this post, automatically or with one tap when it's doing well.</div>`}
   </div>`;
 }
