@@ -554,6 +554,7 @@ function validate(c, forQueue){
   if (!c.text.trim() && forQueue) return 'Write something first.';
   if (c.text.length > MAX_TEXT) return `LinkedIn allows ${MAX_TEXT} characters. This post has ${c.text.length}.`;
   if (c.plug.enabled) {
+    if (forQueue && !c.plug.link.trim() && !/https?:\/\//.test(c.plug.text)) return 'Your plug comment has no link. Add your link (e.g. cal.com/sketchbase/call) or turn the plug off.';
     const f = plugFinal(c.plug, c.id || 'x'.repeat(24));
     if (f.length > MAX_COMMENT) return `The plug comment is ${f.length} characters (max ${MAX_COMMENT}).`;
     if (c.plug.delay_hours != null && !(c.plug.delay_hours >= 0)) return 'Plug delay must be a number of hours.';
@@ -624,6 +625,7 @@ function duplicate(){
 async function dropPlug(){
   const c = S.cur;
   if (!c.plug.enabled || !(c.plug.text.trim() || c.plug.link.trim())) return toast('Write the plug first.', true);
+  if (!c.plug.link.trim() && !/https?:\/\//.test(c.plug.text)) return toast('Add your link to the plug first.', true);
   const err = validate(c, false); if (err) return toast(err, true);
   clearTimeout(S.timer);
   try {
@@ -1039,6 +1041,16 @@ document.addEventListener('keydown', e => {
 window.addEventListener('beforeunload', e => { if (S.cur?.dirty || S.cur?.saving) { e.preventDefault(); e.returnValue = ''; } });
 setInterval(() => { if (S.connected && !S.cur?.dirty && !document.hidden) loadAll().catch(() => {}); }, 120000);
 
+const BUILD = '2026-11-13b';
+async function checkVersion(){
+  if (!/^https?:/.test(location.protocol)) return;
+  try {
+    const t = await (await fetch(location.pathname + '?build=' + Date.now(), { cache: 'no-store' })).text();
+    const m = t.match(/const BUILD = '([^']+)'/);
+    if (m && m[1] !== BUILD && !(S.cur && (S.cur.dirty || S.cur.saving))) { toast('Updating to the latest version…'); setTimeout(() => location.reload(), 800); }
+  } catch {}
+}
+setInterval(checkVersion, 5 * 60e3);
 (function init(){
   S.cfg = load('lis-cfg') || {};
   // One-click setup link: …/#setup=<base64 JSON>. The part after # never leaves the browser.
@@ -1049,7 +1061,7 @@ setInterval(() => { if (S.connected && !S.cur?.dirty && !document.hidden) loadAl
   }
   const cached = load('lis-settings'); if (cached) S.settings = deepMerge(structuredClone(DEFAULT_SETTINGS), cached);
   S.tab = load('lis-tab') || 'queue';
-  renderAll(); connect();
+  renderAll(); connect(); checkVersion();
 })();
 </script>
 </body>
